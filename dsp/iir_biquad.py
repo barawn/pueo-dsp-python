@@ -118,8 +118,8 @@ def iir_biquad( ins , samp_per_clock, mag, angle, ics = None ):
         # THIS IS NOT RECURSIVE B/C WE DO NOT TOUCH THE SECOND INDEX
         for j in range(2, samp_per_clock):
             arr[j][i] += 2*mag*np.cos(angle)*arr[j-1][i] - pow(mag, 2)*arr[j-2][i]
-    # and this flattens everything
-    return arr.reshape(-1)
+    # now transpose arr
+    return arr.transpose().reshape(-1)
     
         
     
