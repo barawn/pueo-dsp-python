@@ -4,9 +4,10 @@
 
 Implements a parallelized and pipelined version of a generic biquad
 with complementary poles. Parallelization is controllable by samp_per_clock
-but it always has to be 3 or more.
+but it always has to be 3 or more. Gives results with fractional error of
+10^-12 to 10^-15 (due to rounding).
 
-Still needs to be debugged a bit. Note that it will **not** produce
-an "identical" output to the equivalent filter - it generates a
-__transformed__ filter which has the same frequency properties, but
-will not be bit-for-bit identical.
+Outputs all coefficients needed to implement in an FPGA in debugging outputs.
+
+Note that it only does the denominator of a biquad, the numerator can
+be done by lfilter.
