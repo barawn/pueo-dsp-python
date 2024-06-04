@@ -38,6 +38,11 @@ def test():
 # to floating-point limitations, since the calculation involves constants raised on the order of
 # a power of samp_per_clock*2.
 #
+# Note: Non-conjugate poles (2 real poles) aren't covered here because they're simpler: they can
+# be written as 2 cascaded first-order filters, and those can just be restructured by adding
+# complementary cancelling zeros to move z^-1 to z^-samp_per_clock.
+# The way this works out is that it *breaks* the cross-coupling between the two final IIRs
+# (and the two FIRs when pipelining).
 def iir_biquad( ins , samp_per_clock, mag, angle, ics = None ):
     if ics is None:
         # Debugging
