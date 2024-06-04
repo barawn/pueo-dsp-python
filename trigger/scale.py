@@ -355,6 +355,7 @@ def loop_quant(in_scale,
     return history
         
 def test_quant(scaling_factor):
+    print("Running quantized test!")
     # ok let's like, attempt this I guess
     in_scale = 32/scaling_factor
     cur_factor = 4096
@@ -417,6 +418,8 @@ def test_quant(scaling_factor):
     # show the beginning
     quant_run(in_scale, 0, verbose=True)
     in_scale = 32/scaling_factor
+    cw_scale = 0
+    print("Running loop run with", in_scale, "and CW", cw_scale)
     history = loop_quant(in_scale,
                          params,
                          history)
@@ -428,6 +431,7 @@ def test_quant(scaling_factor):
     history['last_err'] = 0
     in_scale = 32/scaling_factor
     cw_scale = 32/scaling_factor
+    print("Running loop run with", in_scale, "and CW", cw_scale)    
     history = loop_quant(in_scale,
                          params,
                          history,
@@ -435,6 +439,7 @@ def test_quant(scaling_factor):
 
     in_scale = 24/scaling_factor
     cw_scale = 0
+    print("Running loop run at", in_scale, "with CW", cw_scale)
     history = loop_quant(in_scale,
                          params,
                          history,
