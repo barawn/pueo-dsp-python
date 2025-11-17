@@ -5,14 +5,38 @@ import numpy as np
 from scipy.special import eval_chebyu
 import scipy.signal as signal
 
-def test():
+def test(freq=350, q=5, fs=3000):
     orig = np.zeros(1024)
     orig[512] = 1000
-    b, a = signal.iirnotch(350, 5, 3000)
+    b, a = signal.iirnotch(freq, q, fs=fs)
+
+    firred = signal.lfilter(b, [1], orig)
+    
     pole = signal.tf2zpk(b,a)[1][0]
     mag=np.abs(pole)
     angle=np.angle(pole)
-    return iir_biquad(orig, 8, mag, angle)
+    ssr = int(fs/375)
+    print(f'Testing freq {freq} MHz Q={q} with fs={fs} MHz')
+    print(f'Mag {mag} Angle {angle} SSR {ssr}')
+    return iir_biquad(firred, ssr, mag, angle)
+
+def iir_coeffs(mag, angle, samp_per_clock=8):
+    C = np.zeros(4)
+    C[0] = pow(mag, 2*samp_per_clock)*(pow(eval_chebyu(samp_per_clock-2, np.cos(angle)), 2) -
+                                       pow(eval_chebyu(samp_per_clock-1, np.cos(angle)), 2))
+
+    C[1] = pow(mag, 2*samp_per_clock-1)*((eval_chebyu(samp_per_clock-1, np.cos(angle)))*
+                                         (eval_chebyu(samp_per_clock,np.cos(angle)) -
+                                          eval_chebyu(samp_per_clock-2, np.cos(angle))))
+
+    C[2] = pow(mag, 2*samp_per_clock+1)*((eval_chebyu(samp_per_clock-1, np.cos(angle)))*
+                                         (eval_chebyu(samp_per_clock-2, np.cos(angle))-
+                                          eval_chebyu(samp_per_clock, np.cos(angle))))
+
+    C[3] = pow(mag, 2*samp_per_clock)*(pow(eval_chebyu(samp_per_clock, np.cos(angle)), 2) -
+                                       pow(eval_chebyu(samp_per_clock-1, np.cos(angle)), 2))
+    return C
+    
 
 # Feedback portion of a IIR pipelined at samp_per_clock speed.
 # The FIR portion can just be run as a FIR.
@@ -50,17 +74,20 @@ def iir_biquad( ins , samp_per_clock, mag, angle, ics = None ):
         ics = np.zeros(samp_per_clock*3)
         ics = ics.reshape(3,-1)
 
+    print(f'Initially: {ins[512:520]}')
+        
     # Generate the FIR coefficients for the "f" term (constant for sample 0)
-    # These go from i=0 to i=samp_per_clock-2
-    f_fir = [0]*(samp_per_clock-2)
-    for i in range(0, samp_per_clock-2):
+    # These go from i=0 to i=samp_per_clock-2 (so length samp_per_clock-1)
+    f_fir = [0]*(samp_per_clock-1)
+    # range is exclusive on the top end, so go to samp_per_clock-1
+    for i in range(0, samp_per_clock-1):
         f_fir[i] = pow(mag, i)*eval_chebyu(i,np.cos(angle) )
     # And the same for the "g" term (constant for sample 1).
     # This is written a bit differently in the document b/c of the block representation.
     # But remember ANY FIR costs only num_tap DSPs period for each sample.
     # This is just the same as the other FIR but with 1 add'l tap
-    g_fir = [0]*(samp_per_clock-1)
-    for i in range(0, samp_per_clock-1):
+    g_fir = [0]*(samp_per_clock)
+    for i in range(0, samp_per_clock):
         g_fir[i] = pow(mag, i)*eval_chebyu(i,np.cos(angle) )
     # Note f_fir[0]/g_fir[0] are going to both be 1
 
@@ -79,6 +106,9 @@ def iir_biquad( ins , samp_per_clock, mag, angle, ics = None ):
     # Now we decimate f/g by 8, because we only want the 0th and 1st samples out of 8 for each.
     f = f.reshape(-1, samp_per_clock).transpose()[0]
     g = g.reshape(-1, samp_per_clock).transpose()[1]
+
+    print(f'f FIR: {f[128:130]}')
+    print(f'g FIR: {g[128:130]}')
     
     # n.b. f[0]/g[0] are initial conditions
     
@@ -118,6 +148,9 @@ def iir_biquad( ins , samp_per_clock, mag, angle, ics = None ):
     # drop the initial conditions
     F = F[1:]
     G = G[1:]
+
+    print(f'F: {F[128:132]}')
+    print(f'G: {G[128:132]}')
     
     # Now reshape our outputs.
     arr = ins.reshape(-1, samp_per_clock).transpose()
@@ -125,20 +158,7 @@ def iir_biquad( ins , samp_per_clock, mag, angle, ics = None ):
     # arr[1] is now every 1st sample (e.g. for samp_per_clock = 8, it's 1, 9, 17, 25, etc.)
 
     # IIR parameters. See the 'update step' in paper.
-    C = np.zeros(4)
-    C[0] = pow(mag, 2*samp_per_clock)*(pow(eval_chebyu(samp_per_clock-2, np.cos(angle)), 2) -
-                                       pow(eval_chebyu(samp_per_clock-1, np.cos(angle)), 2))
-
-    C[1] = pow(mag, 2*samp_per_clock-1)*((eval_chebyu(samp_per_clock-1, np.cos(angle)))*
-                                         (eval_chebyu(samp_per_clock,np.cos(angle)) -
-                                          eval_chebyu(samp_per_clock-2, np.cos(angle))))
-
-    C[2] = pow(mag, 2*samp_per_clock+1)*((eval_chebyu(samp_per_clock-1, np.cos(angle)))*
-                                         (eval_chebyu(samp_per_clock-2, np.cos(angle))-
-                                          eval_chebyu(samp_per_clock, np.cos(angle))))
-
-    C[3] = pow(mag, 2*samp_per_clock)*(pow(eval_chebyu(samp_per_clock, np.cos(angle)), 2) -
-                                       pow(eval_chebyu(samp_per_clock-1, np.cos(angle)), 2))
+    C = iir_coeffs(mag, angle, samp_per_clock)
 
     # Debugging
     print("Update step (matrix) coefficients:", C)
